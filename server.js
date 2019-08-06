@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 //bring in graphql-express middleware
 const { graphiqlExpress, graphqlExpress } = require('apollo-server-express');
 const { makeExecutableSchema } = require('graphql-tools');
@@ -34,6 +35,21 @@ const corsOptions = {
     credentials: true
 }
 app.use(cors(corsOptions))
+
+//Set up JWT authentication  middleware
+app.use(async (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (token !== "null") {
+        try {
+            const currentUser = await jwt.verify(token, process.env.SECRET);
+            console.log(currentUser)
+            req.currentUser = currentUser;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+    next();
+})
 //create graphiQL application
 app.use('/graphiql', graphiqlExpress({ endpointURL: '/graphql' }));
 
@@ -41,13 +57,17 @@ app.use('/graphiql', graphiqlExpress({ endpointURL: '/graphql' }));
 app.use(
     '/graphql',
     bodyParser.json(),
-    graphqlExpress({
-        schema,
-        context: {    //context: contain object pass mangoose model to graphql by using context
-            Recipe,
-            User
+    graphqlExpress(({currentUser}) => (
+        {
+            schema,
+            context: {    //context: contain object pass mangoose model to graphql by using context
+                Recipe,
+                User,
+                currentUser
+            }
         }
-    }));
+    ))
+);
 
 app.listen(PORT, () => {
     console.log(`server listening on PORT ${PORT}`);
